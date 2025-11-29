@@ -26,3 +26,13 @@ dist-ssr
 # Tauri/Rust build artifacts
 src-tauri/target/
 *.pdb
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.env
+.venv
+venv/
