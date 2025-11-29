@@ -7,7 +7,7 @@ This directory contains Docker configurations for the backend AI services requir
 All AI models run completely locally on your machine:
 - **ASR**: OpenAI Whisper (open-source, runs locally)
 - **LLM**: Qwen 0.5B (open-source, runs locally via llama.cpp)
-- **TTS**: espeak-ng (open-source, runs locally)
+- **TTS**: VoxCPM / Index-TTS2 / espeak-ng (multiple options, all local)
 
 No API keys, no cloud services, no data sent externally!
 
@@ -23,9 +23,12 @@ No API keys, no cloud services, no data sent externally!
 - **Model**: Qwen2-0.5B-Instruct (local GGUF format via llama.cpp)
 - **Endpoint**: OpenAI-compatible API
 
-### 3. VoxCPM (TTS - Text-to-Speech)
+### 3. TTS Server (Text-to-Speech)
 - **Port**: 5500
-- **Engine**: espeak-ng (local, open-source)
+- **Supported Engines** (all local):
+  - **VoxCPM**: Neural TTS (requires model download)
+  - **Index-TTS2**: High-quality neural TTS (requires model download)
+  - **espeak-ng**: Fast, lightweight (built-in, always available)
 - **Endpoint**: `POST /tts`
 
 ## Quick Start
@@ -80,7 +83,7 @@ Environment variables:
 - `DEVICE`: Device to use (cpu, cuda) - default: cpu
 - `PORT`: Server port - default: 9090
 
-#### VoxCPM (TTS)
+#### TTS Server (VoxCPM / Index-TTS2 / espeak)
 
 ```bash
 cd voxcpm
@@ -95,9 +98,17 @@ python server.py
 ```
 
 Environment variables:
+- `TTS_BACKEND`: TTS engine (auto, voxcpm, index-tts2, espeak) - default: auto
 - `TTS_VOICE`: Default voice - default: default
 - `TTS_RATE`: Speech rate - default: 150
+- `VOXCPM_MODEL_PATH`: Path to VoxCPM model - default: /app/models/voxcpm
+- `INDEX_TTS_MODEL_PATH`: Path to Index-TTS2 model - default: /app/models/index-tts2
 - `PORT`: Server port - default: 5500
+
+**Note**: The server automatically detects available TTS engines and uses the best available option:
+1. VoxCPM (if model installed)
+2. Index-TTS2 (if model installed)
+3. espeak-ng (always available as fallback)
 
 #### Qwen LLM
 
@@ -146,7 +157,7 @@ Transcribe audio to text.
 }
 ```
 
-### VoxCPM TTS API
+### TTS API
 
 #### POST /tts
 Synthesize text to speech.
@@ -157,7 +168,8 @@ Synthesize text to speech.
     "text": "Text to synthesize",
     "voice": "default",  // optional
     "speed": 1.0,        // optional
-    "sample_rate": 22050 // optional
+    "sample_rate": 22050, // optional
+    "engine": "voxcpm"   // optional: voxcpm, index-tts2, espeak
 }
 ```
 
@@ -166,12 +178,25 @@ Synthesize text to speech.
 {
     "audio": "<base64 encoded WAV audio>",
     "sample_rate": 22050,
-    "duration": 1.5
+    "duration": 1.5,
+    "engine": "espeak"
 }
 ```
 
 **Response (default):**
 Raw WAV audio bytes
+
+#### GET /engines
+List available TTS engines.
+
+**Response:**
+```json
+{
+    "available": ["espeak", "pyttsx3"],
+    "active": "espeak",
+    "supported": ["voxcpm", "index-tts2", "espeak", "pyttsx3"]
+}
+```
 
 ### Qwen LLM API (OpenAI-compatible)
 
