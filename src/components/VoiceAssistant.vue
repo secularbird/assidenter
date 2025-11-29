@@ -17,15 +17,20 @@ let mediaRecorder = null
 let audioChunks = []
 let vadTimeout = null
 let silenceStart = null
-const SILENCE_THRESHOLD = 0.01
-const SILENCE_DURATION = 1500 // 1.5 seconds of silence to end recording
-const MIN_RECORDING_DURATION = 500 // Minimum recording time in ms
 
-// Settings
+// Audio format constants
+const INT16_MAX = 0x7FFF  // Maximum value for signed 16-bit integer
+const INT16_MIN_ABS = 0x8000  // Absolute value of minimum signed 16-bit integer
+
+// Settings (including configurable VAD parameters)
 const settings = ref({
   asrUrl: 'http://localhost:9090',
   llmUrl: 'http://localhost:8080',
-  ttsUrl: 'http://localhost:5500'
+  ttsUrl: 'http://localhost:5500',
+  // VAD configuration
+  silenceThreshold: 0.01,  // Audio level threshold for voice detection
+  silenceDuration: 1500,   // Milliseconds of silence to end recording
+  minRecordingDuration: 500  // Minimum recording time in milliseconds
 })
 const showSettings = ref(false)
 
@@ -68,10 +73,24 @@ async function startAudioCapture() {
     analyser.fftSize = 2048
     source.connect(analyser)
     
-    // Create media recorder
-    mediaRecorder = new MediaRecorder(stream, {
-      mimeType: 'audio/webm;codecs=opus'
-    })
+    // Determine best supported audio format
+    const preferredMimeTypes = [
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/ogg;codecs=opus',
+      'audio/mp4'
+    ]
+    let selectedMimeType = ''
+    for (const mimeType of preferredMimeTypes) {
+      if (MediaRecorder.isTypeSupported(mimeType)) {
+        selectedMimeType = mimeType
+        break
+      }
+    }
+    
+    // Create media recorder with supported format
+    const recorderOptions = selectedMimeType ? { mimeType: selectedMimeType } : {}
+    mediaRecorder = new MediaRecorder(stream, recorderOptions)
     
     audioChunks = []
     let recordingStartTime = null
@@ -84,13 +103,13 @@ async function startAudioCapture() {
     
     mediaRecorder.onstop = async () => {
       if (audioChunks.length > 0) {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' })
+        const audioBlob = new Blob(audioChunks, { type: selectedMimeType || 'audio/webm' })
         await processRecording(audioBlob)
       }
       audioChunks = []
     }
     
-    // VAD using analyser
+    // VAD using analyser with configurable thresholds
     const bufferLength = analyser.frequencyBinCount
     const dataArray = new Uint8Array(bufferLength)
     
@@ -108,7 +127,7 @@ async function startAudioCapture() {
       
       const now = Date.now()
       
-      if (average > SILENCE_THRESHOLD) {
+      if (average > settings.value.silenceThreshold) {
         // Voice detected
         silenceStart = null
         
@@ -122,10 +141,10 @@ async function startAudioCapture() {
         // Silence detected while speaking
         if (!silenceStart) {
           silenceStart = now
-        } else if (now - silenceStart > SILENCE_DURATION) {
+        } else if (now - silenceStart > settings.value.silenceDuration) {
           // End of speech
           const duration = now - recordingStartTime
-          if (duration > MIN_RECORDING_DURATION) {
+          if (duration > settings.value.minRecordingDuration) {
             isSpeaking.value = false
             mediaRecorder.stop()
             console.log('Speech ended, duration:', duration)
@@ -144,7 +163,7 @@ async function startAudioCapture() {
     
   } catch (error) {
     console.error('Failed to start audio capture:', error)
-    addMessage('system', `Error accessing microphone: ${error.message}`)
+    addMessage('system', `Microphone access error: ${error.message}. Please ensure microphone permissions are granted.`)
     isListening.value = false
   }
 }
@@ -229,11 +248,12 @@ async function convertToWav(blob) {
   writeString(view, 36, 'data')
   view.setUint32(40, samples.length * 2, true)
   
-  // Write audio data
+  // Write audio data - convert float samples to 16-bit signed integers
   const offset = 44
   for (let i = 0; i < samples.length; i++) {
     const sample = Math.max(-1, Math.min(1, samples[i]))
-    view.setInt16(offset + i * 2, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true)
+    // Scale to 16-bit range using named constants
+    view.setInt16(offset + i * 2, sample < 0 ? sample * INT16_MIN_ABS : sample * INT16_MAX, true)
   }
   
   return new Blob([wavBuffer], { type: 'audio/wav' })
@@ -456,24 +476,25 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Messages -->
-    <div class="messages-container">
+    <!-- Messages with ARIA live region for screen readers -->
+    <div class="messages-container" role="log" aria-live="polite" aria-label="Conversation messages">
       <div
         v-for="msg in messages"
         :key="msg.id"
         :class="['message', `message-${msg.role}`]"
+        :aria-label="`${msg.role}: ${msg.content}`"
       >
         <div class="message-content">
-          <span class="message-role">{{ msg.role === 'user' ? '🧑' : msg.role === 'assistant' ? '🤖' : '⚙️' }}</span>
+          <span class="message-role" aria-hidden="true">{{ msg.role === 'user' ? '🧑' : msg.role === 'assistant' ? '🤖' : '⚙️' }}</span>
           <p>{{ msg.content }}</p>
         </div>
         <span class="message-time">{{ msg.timestamp }}</span>
       </div>
     </div>
 
-    <!-- Status Indicator -->
-    <div v-if="processingStatus" class="status-indicator">
-      <div class="spinner"></div>
+    <!-- Status Indicator with ARIA live region -->
+    <div v-if="processingStatus" class="status-indicator" role="status" aria-live="assertive">
+      <div class="spinner" aria-hidden="true"></div>
       <span>{{ processingStatus }}</span>
     </div>
 
@@ -485,12 +506,14 @@ onUnmounted(() => {
           :class="{ listening: isListening, speaking: isSpeaking }"
           @click="toggleListening"
           :disabled="isProcessing"
+          :aria-label="isProcessing ? 'Processing, please wait' : (isListening ? (isSpeaking ? 'Recording speech' : 'Listening for speech, click to stop') : 'Click to start listening')"
+          :aria-pressed="isListening"
         >
-          <span v-if="isListening && isSpeaking">🎤</span>
-          <span v-else-if="isListening">👂</span>
-          <span v-else>🎙️</span>
+          <span v-if="isListening && isSpeaking" aria-hidden="true">🎤</span>
+          <span v-else-if="isListening" aria-hidden="true">👂</span>
+          <span v-else aria-hidden="true">🎙️</span>
         </button>
-        <p class="voice-status">
+        <p class="voice-status" aria-live="polite">
           {{ isProcessing ? 'Processing...' : (isListening ? (isSpeaking ? 'Speaking...' : 'Listening...') : 'Click to start') }}
         </p>
       </div>
@@ -501,11 +524,13 @@ onUnmounted(() => {
           placeholder="Or type a message..."
           @keyup.enter="sendTextMessage"
           :disabled="isProcessing"
+          aria-label="Type a message"
         />
         <button
           class="btn-send"
           @click="sendTextMessage"
           :disabled="!textInput.trim() || isProcessing"
+          aria-label="Send message"
         >
           Send
         </button>

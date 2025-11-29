@@ -97,8 +97,11 @@ impl VoxCPMTTS {
                 .to_vec()
         };
 
-        // Calculate approximate duration
-        let duration = audio_data.len() as f64 / (self.config.sample_rate as f64 * 2.0);
+        // Calculate approximate duration assuming 16-bit mono PCM audio
+        // Duration = total_bytes / (sample_rate * bytes_per_sample * channels)
+        // For 16-bit mono: bytes_per_sample = 2, channels = 1
+        let bytes_per_sample: f64 = 2.0;
+        let duration = audio_data.len() as f64 / (self.config.sample_rate as f64 * bytes_per_sample);
 
         Ok(TTSResult {
             audio_data,
