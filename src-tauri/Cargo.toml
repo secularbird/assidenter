@@ -1,0 +1,46 @@
+[package]
+name = "assidenter"
+version = "0.1.0"
+description = "A Tauri voice assistant app with ASR, LLM, and TTS"
+authors = ["you"]
+license = "MIT"
+repository = ""
+edition = "2021"
+rust-version = "1.77.2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+default = ["remote-services"]
+# Use remote HTTP services (default for desktop)
+remote-services = ["reqwest"]
+# Use embedded on-device inference (for mobile/offline)
+embedded-services = []
+
+[build-dependencies]
+tauri-build = { version = "2.5.1" }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.9.2" }
+tauri-plugin-log = "2"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+
+# HTTP client for API calls (optional, only for remote services)
+reqwest = { version = "0.12", features = ["json", "multipart", "stream"], optional = true }
+
+# Base64 encoding for audio data
+base64 = "0.22"
+
+# For Android/embedded services - model paths and file handling
+dirs = "5.0"
+once_cell = "1.19"
