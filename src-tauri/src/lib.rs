@@ -6,10 +6,13 @@ use tauri::{AppHandle, Emitter, State};
 use serde::{Deserialize, Serialize};
 use base64::Engine;
 
-use crate::services::{WhisperLiveKit, QwenLLM, VoxCPMTTS};
+use crate::services::{WhisperLiveKit, QwenLLM, VoxCPMTTS, ServiceMode};
 use crate::services::asr::WhisperConfig;
 use crate::services::llm::QwenConfig;
 use crate::services::tts::VoxCPMConfig;
+
+#[cfg(feature = "embedded-services")]
+use crate::services::embedded::{ModelManager, ModelInfo};
 
 /// Application state (thread-safe)
 pub struct AppState {
@@ -17,6 +20,9 @@ pub struct AppState {
     llm: Mutex<QwenLLM>,
     tts: Mutex<VoxCPMTTS>,
     is_listening: AtomicBool,
+    service_mode: ServiceMode,
+    #[cfg(feature = "embedded-services")]
+    model_manager: ModelManager,
 }
 
 impl AppState {
@@ -26,6 +32,9 @@ impl AppState {
             llm: Mutex::new(QwenLLM::new(QwenConfig::default())),
             tts: Mutex::new(VoxCPMTTS::new(VoxCPMConfig::default())),
             is_listening: AtomicBool::new(false),
+            service_mode: ServiceMode::default(),
+            #[cfg(feature = "embedded-services")]
+            model_manager: ModelManager::new(),
         }
     }
 }
@@ -45,6 +54,17 @@ pub struct ProcessingResult {
     pub transcription: Option<String>,
     pub response: Option<String>,
     pub audio_ready: bool,
+}
+
+/// Service status for frontend
+#[derive(Debug, Clone, Serialize)]
+pub struct ServiceStatus {
+    pub mode: String,
+    pub asr_ready: bool,
+    pub llm_ready: bool,
+    pub tts_ready: bool,
+    #[cfg(feature = "embedded-services")]
+    pub models_ready: bool,
 }
 
 /// Start listening for voice input (simplified - frontend handles audio)
@@ -78,6 +98,24 @@ async fn stop_listening(app: AppHandle, state: State<'_, AppState>) -> Result<()
 #[tauri::command]
 async fn is_listening(state: State<'_, AppState>) -> Result<bool, String> {
     Ok(state.is_listening.load(Ordering::SeqCst))
+}
+
+/// Get current service status
+#[tauri::command]
+async fn get_service_status(state: State<'_, AppState>) -> Result<ServiceStatus, String> {
+    let mode = match state.service_mode {
+        ServiceMode::Remote => "remote",
+        ServiceMode::Embedded => "embedded",
+    };
+
+    Ok(ServiceStatus {
+        mode: mode.to_string(),
+        asr_ready: true, // Remote services are always "ready" (connectivity checked on use)
+        llm_ready: true,
+        tts_ready: true,
+        #[cfg(feature = "embedded-services")]
+        models_ready: state.model_manager.are_models_ready(),
+    })
 }
 
 /// Process audio data (received from frontend as base64 WAV)
@@ -212,6 +250,66 @@ async fn send_text_message(
     })
 }
 
+// ============================================================================
+// Model Management Commands (for embedded/Android mode)
+// ============================================================================
+
+/// Get information about required models
+#[cfg(feature = "embedded-services")]
+#[tauri::command]
+async fn get_model_info(state: State<'_, AppState>) -> Result<Vec<ModelInfo>, String> {
+    Ok(state.model_manager.get_model_info())
+}
+
+/// Check if all models are ready
+#[cfg(feature = "embedded-services")]
+#[tauri::command]
+async fn are_models_ready(state: State<'_, AppState>) -> Result<bool, String> {
+    Ok(state.model_manager.are_models_ready())
+}
+
+/// Get model download URL
+#[cfg(feature = "embedded-services")]
+#[tauri::command]
+async fn get_model_download_url(file_name: String, state: State<'_, AppState>) -> Result<String, String> {
+    state.model_manager.get_download_url(&file_name)
+        .map(|s| s.to_string())
+        .ok_or_else(|| format!("Unknown model: {}", file_name))
+}
+
+/// Get model directory path
+#[cfg(feature = "embedded-services")]
+#[tauri::command]
+async fn get_model_dir(state: State<'_, AppState>) -> Result<String, String> {
+    state.model_manager.ensure_model_dir()?;
+    Ok(state.model_manager.model_dir().to_string_lossy().to_string())
+}
+
+// Placeholder commands for non-embedded builds
+#[cfg(not(feature = "embedded-services"))]
+#[tauri::command]
+async fn get_model_info() -> Result<Vec<serde_json::Value>, String> {
+    Ok(vec![])
+}
+
+#[cfg(not(feature = "embedded-services"))]
+#[tauri::command]
+async fn are_models_ready() -> Result<bool, String> {
+    Ok(true) // Remote mode doesn't need local models
+}
+
+#[cfg(not(feature = "embedded-services"))]
+#[tauri::command]
+async fn get_model_download_url(_file_name: String) -> Result<String, String> {
+    Err("Model downloads not available in remote mode".to_string())
+}
+
+#[cfg(not(feature = "embedded-services"))]
+#[tauri::command]
+async fn get_model_dir() -> Result<String, String> {
+    Err("Model directory not available in remote mode".to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -230,10 +328,16 @@ pub fn run() {
             start_listening,
             stop_listening,
             is_listening,
+            get_service_status,
             process_audio,
             configure_services,
             clear_conversation,
             send_text_message,
+            // Model management
+            get_model_info,
+            are_models_ready,
+            get_model_download_url,
+            get_model_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

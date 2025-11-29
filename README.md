@@ -14,8 +14,10 @@ All AI models run completely on your machine. No API keys needed, no data sent t
 ## 📱 Cross-Platform Support
 
 This app runs on:
-- **Desktop**: Windows, macOS, Linux
-- **Mobile**: Android (API 24+)
+- **Desktop**: Windows, macOS, Linux (uses Docker-based backend services)
+- **Mobile**: Android (API 24+) with two deployment options:
+  - **Remote Mode**: Connect to backend services running on your network
+  - **Embedded Mode**: Run AI models directly on the device (experimental)
 
 ## Features
 
@@ -178,6 +180,40 @@ This creates distributable packages for your platform in `src-tauri/target/relea
 - Ensure your Android device has USB debugging enabled
 - For physical device testing, both the device and the backend services must be on the same network
 - Update service URLs in the app settings to point to your server's LAN IP (e.g., `http://192.168.1.x:9090`)
+
+## Android Architecture
+
+The app supports two modes for Android deployment:
+
+### Remote Mode (Default)
+The Android app connects to backend services running on a server or desktop computer on your network. This is the recommended approach for best performance.
+
+```
+[Android App] --HTTP--> [Backend Server]
+                        ├── WhisperLiveKit (ASR)
+                        ├── Qwen LLM
+                        └── VoxCPM TTS
+```
+
+**Setup:**
+1. Start backend services on your computer: `cd services && docker-compose up -d`
+2. Find your computer's IP address on the local network
+3. Configure the app to use your server's IP (e.g., `http://192.168.1.100:9090`)
+
+### Embedded Mode (Experimental)
+For fully offline operation, the app can run AI models directly on the Android device. This requires:
+- Downloading model files (~500MB) to the device
+- Sufficient device memory (4GB+ RAM recommended)
+- Native inference libraries compiled for Android
+
+**Building with Embedded Services:**
+```bash
+# Build with embedded services feature
+cd src-tauri
+cargo build --features embedded-services --target aarch64-linux-android
+```
+
+**Note:** Embedded mode is experimental and requires additional native library setup. See `src-tauri/src/services/embedded/` for implementation details.
 
 ## License
 
