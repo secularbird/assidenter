@@ -11,6 +11,12 @@ A Tauri 2 voice assistant application built with Vue.js that runs **100% locally
 
 All AI models run completely on your machine. No API keys needed, no data sent to external servers!
 
+## 📱 Cross-Platform Support
+
+This app runs on:
+- **Desktop**: Windows, macOS, Linux
+- **Mobile**: Android (API 24+)
+
 ## Features
 
 - 🎤 Voice-based conversation with VAD (Voice Activity Detection)
@@ -20,6 +26,7 @@ All AI models run completely on your machine. No API keys needed, no data sent t
 - ⚙️ Configurable service endpoints
 - 🌙 Modern dark theme UI
 - 🔒 Privacy-first: all processing happens locally
+- 📱 Mobile-ready: Responsive UI for Android devices
 
 ## Quick Start
 
@@ -48,15 +55,27 @@ See [services/README.md](services/README.md) for detailed setup instructions.
 # Install dependencies
 npm install
 
-# Run in development mode
+# Run in development mode (desktop)
 npm run tauri dev
 ```
 
 ## Prerequisites
 
+### Desktop Development
 - **Node.js** 18+ and npm
 - **Rust** 1.77+ (for Tauri)
 - **Docker** and Docker Compose (for backend services)
+
+### Android Development
+- All desktop prerequisites, plus:
+- **Android Studio** with SDK (API level 24+)
+- **Android NDK** (install via Android Studio SDK Manager)
+- **Java JDK** 17+
+- Set environment variables:
+  ```bash
+  export ANDROID_HOME="$HOME/Android/Sdk"
+  export NDK_HOME="$ANDROID_HOME/ndk/<version>"
+  ```
 
 ## Project Structure
 
@@ -105,6 +124,8 @@ Click the ⚙️ button in the UI to configure service endpoints:
 - **LLM Server**: Qwen 0.5B API endpoint (default: http://localhost:8080)
 - **TTS Server**: VoxCPM TTS endpoint (default: http://localhost:5500)
 
+**For Android**: Configure the server URLs to point to your backend server's IP address instead of localhost.
+
 ## Technical Details
 
 ### Voice Activity Detection (VAD)
@@ -125,11 +146,38 @@ The application uses browser-based VAD for detecting speech:
 
 ## Building for Production
 
+### Desktop Build
+
 ```bash
 npm run tauri build
 ```
 
 This creates distributable packages for your platform in `src-tauri/target/release/bundle/`.
+
+### Android Build
+
+1. **Initialize Android project** (first time only):
+   ```bash
+   npm run tauri android init
+   ```
+
+2. **Development on Android device/emulator**:
+   ```bash
+   npm run tauri android dev
+   ```
+
+3. **Build Android APK**:
+   ```bash
+   npm run tauri android build
+   ```
+   
+   The APK will be generated at `src-tauri/gen/android/app/build/outputs/apk/`.
+
+### Android Notes
+
+- Ensure your Android device has USB debugging enabled
+- For physical device testing, both the device and the backend services must be on the same network
+- Update service URLs in the app settings to point to your server's LAN IP (e.g., `http://192.168.1.x:9090`)
 
 ## License
 
