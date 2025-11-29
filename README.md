@@ -16,53 +16,46 @@ A Tauri 2 voice assistant application built with Vue.js that integrates:
 - ⚙️ Configurable service endpoints
 - 🌙 Modern dark theme UI
 
-## Prerequisites
+## Quick Start
 
-Before running the application, ensure you have the following services running:
+### 1. Start Backend Services
 
-### 1. WhisperLiveKit (ASR Server)
-Default URL: `http://localhost:9090`
+The backend AI services are included in the `services/` directory.
 
 ```bash
-# Install and run WhisperLiveKit
-# See: https://github.com/collabora/WhisperLiveKit
+cd services
+
+# Download the Qwen model first
+mkdir -p models
+# Download qwen2-0_5b-instruct-q4_k_m.gguf from:
+# https://huggingface.co/Qwen/Qwen2-0.5B-Instruct-GGUF
+
+# Start all services with Docker Compose
+docker-compose up -d
 ```
 
-### 2. Qwen 0.5B (LLM Server)
-Default URL: `http://localhost:8080`
+This starts:
+- **WhisperLiveKit ASR** on port 9090
+- **Qwen 0.5B LLM** on port 8080
+- **VoxCPM TTS** on port 5500
+
+See [services/README.md](services/README.md) for detailed setup instructions.
+
+### 2. Install and Run the App
 
 ```bash
-# Run Qwen 0.5B with OpenAI-compatible API
-# Can use llama.cpp, vLLM, or similar serving frameworks
-```
-
-### 3. VoxCPM (TTS Server)
-Default URL: `http://localhost:5500`
-
-```bash
-# Install and run VoxCPM TTS server
-# See: https://github.com/OpenBMB/VoxCPM
-```
-
-## Installation
-
-### Install dependencies
-
-```bash
+# Install dependencies
 npm install
-```
 
-### Development
-
-```bash
+# Run in development mode
 npm run tauri dev
 ```
 
-### Build
+## Prerequisites
 
-```bash
-npm run tauri build
-```
+- **Node.js** 18+ and npm
+- **Rust** 1.77+ (for Tauri)
+- **Docker** and Docker Compose (for backend services)
 
 ## Project Structure
 
@@ -78,10 +71,6 @@ assidenter/
 │   ├── src/
 │   │   ├── lib.rs         # Main Tauri app logic
 │   │   ├── main.rs        # Entry point
-│   │   ├── audio/         # Audio capture & VAD modules
-│   │   │   ├── capture.rs
-│   │   │   ├── vad.rs
-│   │   │   └── mod.rs
 │   │   └── services/      # AI service integrations
 │   │       ├── asr.rs     # WhisperLiveKit client
 │   │       ├── llm.rs     # Qwen LLM client
@@ -89,13 +78,18 @@ assidenter/
 │   │       └── mod.rs
 │   ├── Cargo.toml         # Rust dependencies
 │   └── tauri.conf.json    # Tauri configuration
+├── services/              # Backend AI services
+│   ├── docker-compose.yml # Docker Compose config
+│   ├── whisper-livekit/   # ASR server
+│   ├── voxcpm/            # TTS server
+│   └── README.md          # Services documentation
 ├── package.json           # Node.js dependencies
 └── vite.config.js         # Vite configuration
 ```
 
 ## Usage
 
-1. Start the required backend services (WhisperLiveKit, Qwen, VoxCPM)
+1. Start the backend services (see Quick Start above)
 2. Run the application with `npm run tauri dev`
 3. Click the microphone button to start voice interaction
 4. Speak your question - the VAD will detect when you start/stop speaking
@@ -106,27 +100,35 @@ assidenter/
 
 Click the ⚙️ button in the UI to configure service endpoints:
 
-- **ASR Server**: WhisperLiveKit endpoint
-- **LLM Server**: Qwen 0.5B API endpoint
-- **TTS Server**: VoxCPM TTS endpoint
+- **ASR Server**: WhisperLiveKit endpoint (default: http://localhost:9090)
+- **LLM Server**: Qwen 0.5B API endpoint (default: http://localhost:8080)
+- **TTS Server**: VoxCPM TTS endpoint (default: http://localhost:5500)
 
 ## Technical Details
 
 ### Voice Activity Detection (VAD)
 
-The application uses WebRTC VAD for detecting speech in the audio stream:
-- Analyzes audio in 30ms frames at 16kHz
-- Requires 3 consecutive speech frames to trigger start
-- Requires 10 consecutive silence frames to trigger end
+The application uses browser-based VAD for detecting speech:
+- Analyzes audio using Web Audio API frequency analysis
+- Configurable silence threshold and duration
+- Automatically stops recording after speech ends
 
 ### Audio Pipeline
 
-1. **Capture**: Microphone input at 16kHz mono
-2. **VAD**: Detect speech segments
+1. **Capture**: Microphone input via browser MediaRecorder
+2. **VAD**: Detect speech segments using frequency analysis
 3. **ASR**: Transcribe speech to text using WhisperLiveKit
 4. **LLM**: Generate response using Qwen 0.5B
 5. **TTS**: Synthesize speech using VoxCPM
-6. **Playback**: Play audio response
+6. **Playback**: Play audio response in browser
+
+## Building for Production
+
+```bash
+npm run tauri build
+```
+
+This creates distributable packages for your platform in `src-tauri/target/release/bundle/`.
 
 ## License
 

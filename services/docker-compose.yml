@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # WhisperLiveKit ASR Server
+  whisper-livekit:
+    build:
+      context: ./whisper-livekit
+      dockerfile: Dockerfile
+    ports:
+      - "9090:9090"
+    environment:
+      - WHISPER_MODEL=base
+      - DEVICE=cpu
+    volumes:
+      - whisper-models:/root/.cache/whisper
+    restart: unless-stopped
+
+  # Qwen 0.5B LLM Server (using llama.cpp server)
+  qwen-llm:
+    image: ghcr.io/ggerganov/llama.cpp:server
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./models:/models
+    command: >
+      -m /models/qwen2-0_5b-instruct-q4_k_m.gguf
+      --host 0.0.0.0
+      --port 8080
+      -c 2048
+      -ngl 0
+    restart: unless-stopped
+
+  # VoxCPM TTS Server
+  voxcpm-tts:
+    build:
+      context: ./voxcpm
+      dockerfile: Dockerfile
+    ports:
+      - "5500:5500"
+    environment:
+      - DEVICE=cpu
+    volumes:
+      - voxcpm-models:/app/models
+    restart: unless-stopped
+
+volumes:
+  whisper-models:
+  voxcpm-models:
