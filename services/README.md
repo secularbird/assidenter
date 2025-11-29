@@ -2,35 +2,50 @@
 
 This directory contains Docker configurations for the backend AI services required by the Assidenter voice assistant.
 
+## 🏠 100% Local - No Cloud APIs Required
+
+All AI models run completely locally on your machine:
+- **ASR**: OpenAI Whisper (open-source, runs locally)
+- **LLM**: Qwen 0.5B (open-source, runs locally via llama.cpp)
+- **TTS**: espeak-ng (open-source, runs locally)
+
+No API keys, no cloud services, no data sent externally!
+
 ## Services
 
 ### 1. WhisperLiveKit (ASR - Speech-to-Text)
 - **Port**: 9090
-- **Model**: OpenAI Whisper (configurable: tiny, base, small, medium, large)
+- **Model**: OpenAI Whisper (local, configurable: tiny, base, small, medium, large)
 - **Endpoint**: `POST /transcribe`
 
 ### 2. Qwen 0.5B (LLM - Language Model)
 - **Port**: 8080
-- **Model**: Qwen2-0.5B-Instruct (GGUF format)
+- **Model**: Qwen2-0.5B-Instruct (local GGUF format via llama.cpp)
 - **Endpoint**: OpenAI-compatible API
 
 ### 3. VoxCPM (TTS - Text-to-Speech)
 - **Port**: 5500
-- **Engine**: espeak-ng / pyttsx3
+- **Engine**: espeak-ng (local, open-source)
 - **Endpoint**: `POST /tts`
 
 ## Quick Start
 
-### Using Docker Compose (Recommended)
+### 1. Download Local Models
 
 ```bash
 cd services
 
-# Download the Qwen model (required for LLM)
-mkdir -p models
-# Download from: https://huggingface.co/Qwen/Qwen2-0.5B-Instruct-GGUF
-# Place qwen2-0_5b-instruct-q4_k_m.gguf in the models directory
+# Run the setup script to download all local models
+./setup.sh
+```
 
+This downloads:
+- Qwen2-0.5B-Instruct GGUF (~400MB) for the LLM
+- Whisper model downloads automatically on first use (~140MB for base)
+
+### 2. Start Services with Docker Compose
+
+```bash
 # Start all services
 docker-compose up -d
 

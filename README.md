@@ -1,43 +1,44 @@
 # Assidenter
 
-A Tauri 2 voice assistant application built with Vue.js that integrates:
+A Tauri 2 voice assistant application built with Vue.js that runs **100% locally** using open-source AI models:
 
-- **WhisperLiveKit** for ASR (Automatic Speech Recognition)
-- **Qwen 0.5** as the LLM (Large Language Model)
-- **VoxCPM** for TTS (Text-to-Speech)
-- **WebRTC VAD** for Voice Activity Detection
+- **WhisperLiveKit** for ASR (Automatic Speech Recognition) - Local Whisper model
+- **Qwen 0.5** as the LLM (Large Language Model) - Local GGUF model via llama.cpp
+- **VoxCPM** for TTS (Text-to-Speech) - Local espeak-ng engine
+- **Browser VAD** for Voice Activity Detection
+
+## 🏠 100% Local - No Cloud APIs Required
+
+All AI models run completely on your machine. No API keys needed, no data sent to external servers!
 
 ## Features
 
 - 🎤 Voice-based conversation with VAD (Voice Activity Detection)
-- 🧠 AI-powered responses using Qwen 0.5B
-- 🔊 Text-to-speech output using VoxCPM
+- 🧠 AI-powered responses using local Qwen 0.5B model
+- 🔊 Text-to-speech output using local espeak-ng
 - ⌨️ Text input support for hybrid interaction
 - ⚙️ Configurable service endpoints
 - 🌙 Modern dark theme UI
+- 🔒 Privacy-first: all processing happens locally
 
 ## Quick Start
 
-### 1. Start Backend Services
-
-The backend AI services are included in the `services/` directory.
+### 1. Download Local Models & Start Services
 
 ```bash
 cd services
 
-# Download the Qwen model first
-mkdir -p models
-# Download qwen2-0_5b-instruct-q4_k_m.gguf from:
-# https://huggingface.co/Qwen/Qwen2-0.5B-Instruct-GGUF
+# Download all required local models (~500MB total)
+./setup.sh
 
 # Start all services with Docker Compose
 docker-compose up -d
 ```
 
-This starts:
-- **WhisperLiveKit ASR** on port 9090
-- **Qwen 0.5B LLM** on port 8080
-- **VoxCPM TTS** on port 5500
+This starts local servers for:
+- **WhisperLiveKit ASR** on port 9090 (local Whisper model)
+- **Qwen 0.5B LLM** on port 8080 (local GGUF model)
+- **VoxCPM TTS** on port 5500 (local espeak-ng)
 
 See [services/README.md](services/README.md) for detailed setup instructions.
 
