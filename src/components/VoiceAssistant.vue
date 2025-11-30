@@ -12,6 +12,11 @@ const messages = ref([])
 const textInput = ref('')
 const audioContext = ref(null)
 
+// Screenshot state
+const isCapturing = ref(false)
+const screenshotImage = ref(null)
+const showScreenshot = ref(false)
+
 // Audio capture state
 let mediaRecorder = null
 let audioChunks = []
@@ -403,6 +408,46 @@ async function playAudio(base64Data) {
   }
 }
 
+// Take a screenshot
+async function takeScreenshot() {
+  if (isCapturing.value) return
+  
+  isCapturing.value = true
+  try {
+    const result = await invoke('take_screenshot', { monitorIndex: null })
+    
+    if (result.success && result.image_base64) {
+      screenshotImage.value = `data:image/png;base64,${result.image_base64}`
+      showScreenshot.value = true
+      addMessage('system', `Screenshot captured (${result.width}x${result.height})`)
+    } else {
+      addMessage('system', `Screenshot failed: ${result.error || 'Unknown error'}`)
+    }
+  } catch (error) {
+    console.error('Failed to take screenshot:', error)
+    addMessage('system', `Screenshot error: ${error}`)
+  } finally {
+    isCapturing.value = false
+  }
+}
+
+// Close screenshot modal
+function closeScreenshot() {
+  showScreenshot.value = false
+}
+
+// Download screenshot
+function downloadScreenshot() {
+  if (!screenshotImage.value) return
+  
+  const link = document.createElement('a')
+  link.href = screenshotImage.value
+  link.download = `screenshot-${Date.now()}.png`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
 // Setup event listeners
 onMounted(async () => {
   // Listen for backend events
@@ -444,6 +489,14 @@ onUnmounted(() => {
       <h1>🎤 Assidenter</h1>
       <p class="subtitle">Voice Assistant powered by WhisperLiveKit + Qwen 0.5 + VoxCPM</p>
       <div class="header-actions">
+        <button 
+          class="btn-icon" 
+          @click="takeScreenshot" 
+          :disabled="isCapturing"
+          title="Take screenshot"
+        >
+          📷
+        </button>
         <button class="btn-icon" @click="clearConversation" title="Clear conversation">
           🗑️
         </button>
@@ -452,6 +505,26 @@ onUnmounted(() => {
         </button>
       </div>
     </header>
+
+    <!-- Screenshot Modal -->
+    <div v-if="showScreenshot" class="screenshot-modal" @click.self="closeScreenshot">
+      <div class="screenshot-container">
+        <div class="screenshot-header">
+          <h3>Screenshot</h3>
+          <div class="screenshot-actions">
+            <button class="btn-secondary" @click="downloadScreenshot" title="Download">
+              💾 Download
+            </button>
+            <button class="btn-icon" @click="closeScreenshot" title="Close">
+              ✕
+            </button>
+          </div>
+        </div>
+        <div class="screenshot-preview">
+          <img :src="screenshotImage" alt="Screenshot" />
+        </div>
+      </div>
+    </div>
 
     <!-- Settings Panel -->
     <div v-if="showSettings" class="settings-panel">
@@ -851,6 +924,70 @@ onUnmounted(() => {
 }
 
 .btn-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Screenshot Modal Styles */
+.screenshot-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.screenshot-container {
+  background: #1a1a3e;
+  border-radius: 12px;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.screenshot-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #2a2a4e;
+}
+
+.screenshot-header h3 {
+  color: #667eea;
+  margin: 0;
+}
+
+.screenshot-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.screenshot-preview {
+  padding: 1rem;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.screenshot-preview img {
+  max-width: 100%;
+  max-height: calc(90vh - 100px);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.btn-icon:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
