@@ -5,6 +5,9 @@ use tokio::sync::Mutex;
 use tauri::{AppHandle, Emitter, State};
 use serde::{Deserialize, Serialize};
 use base64::Engine;
+use xcap::Monitor;
+use image::codecs::png::PngEncoder;
+use image::ImageEncoder;
 
 use crate::services::{WhisperLiveKit, QwenLLM, VoxCPMTTS, ServiceMode};
 use crate::services::asr::WhisperConfig;
@@ -323,10 +326,6 @@ pub struct ScreenshotResult {
 /// Take a screenshot of a specific monitor
 #[tauri::command]
 async fn take_screenshot(monitor_index: Option<usize>) -> Result<ScreenshotResult, String> {
-    use xcap::Monitor;
-    use image::codecs::png::PngEncoder;
-    use image::ImageEncoder;
-    
     // Get all monitors
     let monitors = Monitor::all()
         .map_err(|e| format!("Failed to get monitors: {}", e))?;
@@ -376,8 +375,6 @@ async fn take_screenshot(monitor_index: Option<usize>) -> Result<ScreenshotResul
 /// Get list of available monitors for screenshot
 #[tauri::command]
 async fn get_monitors() -> Result<Vec<MonitorInfo>, String> {
-    use xcap::Monitor;
-    
     let monitors = Monitor::all()
         .map_err(|e| format!("Failed to get monitors: {}", e))?;
     
