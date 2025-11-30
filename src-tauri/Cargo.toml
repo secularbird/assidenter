@@ -44,3 +44,7 @@ base64 = "0.22"
 # For Android/embedded services - model paths and file handling
 dirs = "5.0"
 once_cell = "1.19"
+
+# Screen capture
+xcap = "0.7"
+image = { version = "0.25", default-features = false, features = ["png"] }

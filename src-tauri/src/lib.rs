@@ -310,6 +310,104 @@ async fn get_model_dir() -> Result<String, String> {
     Err("Model directory not available in remote mode".to_string())
 }
 
+/// Screenshot result sent to frontend
+#[derive(Debug, Clone, Serialize)]
+pub struct ScreenshotResult {
+    pub success: bool,
+    pub image_base64: Option<String>,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub error: Option<String>,
+}
+
+/// Take a screenshot of a specific monitor
+#[tauri::command]
+async fn take_screenshot(monitor_index: Option<usize>) -> Result<ScreenshotResult, String> {
+    use xcap::Monitor;
+    use image::codecs::png::PngEncoder;
+    use image::ImageEncoder;
+    
+    // Get all monitors
+    let monitors = Monitor::all()
+        .map_err(|e| format!("Failed to get monitors: {}", e))?;
+    
+    if monitors.is_empty() {
+        return Ok(ScreenshotResult {
+            success: false,
+            image_base64: None,
+            width: None,
+            height: None,
+            error: Some("No monitors found".to_string()),
+        });
+    }
+    
+    // Select monitor (default to primary/first monitor)
+    let index = monitor_index.unwrap_or(0);
+    let monitor = monitors.get(index)
+        .ok_or_else(|| format!("Monitor index {} out of range (available: {})", index, monitors.len()))?;
+    
+    // Capture screenshot
+    let image = monitor.capture_image()
+        .map_err(|e| format!("Failed to capture screenshot: {}", e))?;
+    
+    // Convert to PNG and encode as base64
+    let mut png_data = Vec::new();
+    let encoder = PngEncoder::new(&mut png_data);
+    encoder.write_image(
+        image.as_raw(),
+        image.width(),
+        image.height(),
+        image::ExtendedColorType::Rgba8,
+    ).map_err(|e| format!("Failed to encode image: {}", e))?;
+    
+    let base64_image = base64::engine::general_purpose::STANDARD.encode(&png_data);
+    
+    log::info!("Screenshot captured: {}x{}", image.width(), image.height());
+    
+    Ok(ScreenshotResult {
+        success: true,
+        image_base64: Some(base64_image),
+        width: Some(image.width()),
+        height: Some(image.height()),
+        error: None,
+    })
+}
+
+/// Get list of available monitors for screenshot
+#[tauri::command]
+async fn get_monitors() -> Result<Vec<MonitorInfo>, String> {
+    use xcap::Monitor;
+    
+    let monitors = Monitor::all()
+        .map_err(|e| format!("Failed to get monitors: {}", e))?;
+    
+    let monitor_infos: Vec<MonitorInfo> = monitors.iter().enumerate().map(|(index, monitor)| {
+        MonitorInfo {
+            index,
+            name: monitor.name().to_string(),
+            x: monitor.x(),
+            y: monitor.y(),
+            width: monitor.width(),
+            height: monitor.height(),
+            is_primary: monitor.is_primary(),
+        }
+    }).collect();
+    
+    Ok(monitor_infos)
+}
+
+/// Monitor information for frontend
+#[derive(Debug, Clone, Serialize)]
+pub struct MonitorInfo {
+    pub index: usize,
+    pub name: String,
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    pub is_primary: bool,
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -338,6 +436,9 @@ pub fn run() {
             are_models_ready,
             get_model_download_url,
             get_model_dir,
+            // Screenshot
+            take_screenshot,
+            get_monitors,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
