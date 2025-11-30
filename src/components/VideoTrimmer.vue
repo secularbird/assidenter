@@ -25,6 +25,10 @@ const isTrimming = ref(false)
 const trimProgress = ref(0)
 const errorMessage = ref('')
 
+// Constants for video trimming
+const VIDEO_BITRATE = 2500000 // 2.5 Mbps video bitrate
+const RECORDER_TIMESLICE_MS = 100 // Collect data every 100ms
+
 // Computed
 const formattedDuration = computed(() => formatTime(duration.value))
 const formattedCurrentTime = computed(() => formatTime(currentTime.value))
@@ -180,6 +184,9 @@ async function trimVideo() {
   trimProgress.value = 0
   errorMessage.value = ''
   
+  let audioCtx = null
+  let source = null
+  
   try {
     // Use MediaRecorder to capture the trimmed portion
     const video = videoRef.value
@@ -197,8 +204,8 @@ async function trimVideo() {
     let audioTrack = null
     try {
       // Create audio context to capture video audio
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)()
-      const source = audioCtx.createMediaElementSource(video)
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+      source = audioCtx.createMediaElementSource(video)
       const dest = audioCtx.createMediaStreamDestination()
       source.connect(dest)
       source.connect(audioCtx.destination) // Also play to speakers
@@ -227,7 +234,7 @@ async function trimVideo() {
     
     const mediaRecorder = new MediaRecorder(stream, {
       mimeType: selectedMimeType || undefined,
-      videoBitsPerSecond: 2500000
+      videoBitsPerSecond: VIDEO_BITRATE
     })
     
     const chunks = []
@@ -256,6 +263,14 @@ async function trimVideo() {
       isTrimming.value = false
       trimProgress.value = 100
       
+      // Cleanup audio context
+      if (source) {
+        source.disconnect()
+      }
+      if (audioCtx) {
+        audioCtx.close().catch(() => {})
+      }
+      
       emit('save', blob)
     }
     
@@ -263,11 +278,16 @@ async function trimVideo() {
     video.currentTime = startTime.value
     video.muted = true // Mute to avoid echo during recording
     
+    // Wait for seek to complete and cleanup the event handler
     await new Promise(resolve => {
-      video.onseeked = resolve
+      const onSeeked = () => {
+        video.removeEventListener('seeked', onSeeked)
+        resolve()
+      }
+      video.addEventListener('seeked', onSeeked)
     })
     
-    mediaRecorder.start(100)
+    mediaRecorder.start(RECORDER_TIMESLICE_MS)
     video.play()
     
     // Draw frames to canvas and track progress
