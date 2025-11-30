@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import VideoTrimmer from './VideoTrimmer.vue'
 
 // State
 const isListening = ref(false)
@@ -16,6 +17,9 @@ const audioContext = ref(null)
 const isCapturing = ref(false)
 const screenshotImage = ref(null)
 const showScreenshot = ref(false)
+
+// Video trimmer state
+const showVideoTrimmer = ref(false)
 
 // Audio capture state
 let mediaRecorder = null
@@ -448,6 +452,22 @@ function downloadScreenshot() {
   document.body.removeChild(link)
 }
 
+// Open video trimmer
+function openVideoTrimmer() {
+  showVideoTrimmer.value = true
+}
+
+// Close video trimmer
+function closeVideoTrimmer() {
+  showVideoTrimmer.value = false
+}
+
+// Handle video trim save
+function onVideoTrimSave(blob) {
+  addMessage('system', '视频裁剪完成 / Video trimmed successfully')
+  closeVideoTrimmer()
+}
+
 // Setup event listeners
 onMounted(async () => {
   // Listen for backend events
@@ -497,6 +517,13 @@ onUnmounted(() => {
         >
           📷
         </button>
+        <button 
+          class="btn-icon" 
+          @click="openVideoTrimmer" 
+          title="Video Trimmer / 视频裁剪"
+        >
+          ✂️
+        </button>
         <button class="btn-icon" @click="clearConversation" title="Clear conversation">
           🗑️
         </button>
@@ -525,6 +552,13 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- Video Trimmer Modal -->
+    <VideoTrimmer 
+      v-if="showVideoTrimmer" 
+      @close="closeVideoTrimmer"
+      @save="onVideoTrimSave"
+    />
 
     <!-- Settings Panel -->
     <div v-if="showSettings" class="settings-panel">
